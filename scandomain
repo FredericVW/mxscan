@@ -1,0 +1,67 @@
+#! /usr/bin/python
+
+import dns.resolver
+
+def has_ms(mx_record_parm):
+	return_value = False
+	if "outlook.com" in  mx_record_parm:
+		return_value = True
+	return return_value
+
+def detect_duplicate_domain(current_domain):
+	return_value = False
+	x = 0
+	while x < domain_list_inc :
+		if current_domain == domain_list[x]:
+			global domain_duplicates_inc  
+			domain_duplicates_inc += 1
+			return_value = True
+		x += 1
+	return return_value
+
+f=open("domlist.txt", "r")
+ms=open("microsoft.txt", "w")
+nonms=open("nonms.txt", "w")
+protected=open("protected.txt", "w")
+
+ms_inc = 0
+nonms_inc = 0
+protected_inc = 0
+domain_list_inc = 0
+domain_duplicates_inc = 0
+domain_list = []
+for mailadres in f:
+	y=mailadres.split('@')[1]
+	domain=y.split ('\n')[0]
+	if detect_duplicate_domain(domain) == False:
+		domain_list.append(domain)
+		domain_list_inc += 1
+		mx_preference = 1000
+		mailservers = dns.resolver.query(domain, 'MX')
+		atleast_one_ms = False
+		for mx_item in mailservers:
+			if has_ms(mx_item.exchange.to_text()) == True:
+				atleast_one_ms = True
+			if mx_item.preference < mx_preference:
+				mx_preference = mx_item.preference
+				lowest_mx = mx_item.exchange
+		print(domain + "\t" + lowest_mx.to_text() + "\t" + str(atleast_one_ms))	
+		if has_ms(lowest_mx.to_text()) == True:
+			ms.write(domain + "\n")
+			ms_inc += 1
+		else:
+			if atleast_one_ms == True:
+				protected.write(domain + "\n")
+				protected_inc += 1
+			else:
+				nonms.write(domain + "\n")
+				nonms_inc += 1
+
+f.close()
+ms.close()
+nonms.close()
+print("\n Office 365 : " + str(ms_inc))
+print("Protected : " + str(protected_inc))
+print("Others : " + str(nonms_inc))
+print("Duplicate domains ignored : " + str(domain_duplicates_inc))
+print("Domains treated : " + str(domain_list_inc))
