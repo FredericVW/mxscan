@@ -54,6 +54,7 @@ def repair_domain(current_domain):
 
 def check_http_header(current_domain):
 	global http_cms
+	http_server = ""
 	http_cms = ""
 	global http_cms_result
 	http_cms_result = ""
@@ -62,17 +63,19 @@ def check_http_header(current_domain):
 		res = http.request("GET", "http://www." + current_domain, timeout=10)
 	except:
 		http_server="ConnFailure"
-	try:
-		http_server = res.info()["Server"]
-	except:
-		http_server = "Undetected"
-	try:
-	    http_cms_result = res.info()["X-Drupal-Cache"]
-	except:
-		http_cms = "Unknown"
-	if http_cms_result == "HIT":
-		http_cms = "Drupal"
+	if http_server != "ConnFailure":
+		try:
+			http_server = res.info()["Server"]
+		except:
+			http_server = "Undetected"
+
+		flat_res = str(res.info()).lower()
+		if flat_res.find("drupal") == True:
+			print("Drupal")
 		res.close()
+	else:
+		print("Connection Failure")
+
 	return http_server
 
 f=open("MX-check-klanten2.csv", "r", encoding='ISO-8859-1')
