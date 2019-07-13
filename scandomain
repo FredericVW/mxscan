@@ -2,7 +2,7 @@
 
 import dns.resolver
 import urllib3
-
+import sys
 
 def has_ms(mx_record_parm, contains_value):
 	return_value = False
@@ -31,9 +31,14 @@ def test_domain(current_domain):
 	return return_value
 
 def repair_domain(current_domain):
+	global domain
 	current_domain_s = current_domain.replace("<","")
-	current_domain = current_domain_s.replace(">","")
+	current_domain_t = current_domain_s.replace(">","")
+	current_domain_s = current_domain_t.replace(" ","")
+	current_domain = current_domain_s.replace("\n","")
 	result_domain = test_domain(current_domain)
+	repaired_domain=current_domain
+	#print ("Repaired domain: ", repaired_domain)
 	if result_domain == False:
 		array_domain = current_domain.split(".")
 		len_domain = len(array_domain)
@@ -48,22 +53,50 @@ def repair_domain(current_domain):
 				if result_domain == False:
 					repaired_domain = current_domain[:-3] + "." + current_domain[-3:]
 					result_domain = test_domain(repaired_domain)
+	if result_domain == True:
+			domain = repaired_domain
 	return result_domain
 
 
 
 def check_http_header(current_domain):
+	# Fake Firefox headers
+	headers = {"Host" : "www.nasdaq.com", \
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64; rv:42.0) Gecko/20100101 Firefox/42.0", \
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", \
+        "Accept-Language": "en-US,en;q=0.5", \
+        "Accept-Encoding": "gzip, deflate", \
+        "DNT": "1", \
+        "Cookie": "clientPrefs=||||lightg; userSymbolList=EOD+&DIT; userCookiePref=true; selectedsymbolindustry=EOD,; selectedsymboltype=EOD,EVERGREEN GLOBAL DIVIDEND OPPORTUNITY FUND COMMON SHARES OF BENEFICIAL INTEREST,NYSE; c_enabled$=true", \
+        "Connection": "keep-alive", }
 	global http_cms
-	http_server = ""
-	http_cms = ""
+	global http_kind
+	http_kind = "Undefined"
+	global http_error
+	http_error = ""
+	http_server = "empty"
+	http_cms = "empty"
 	global http_cms_result
 	http_cms_result = ""
 	http = urllib3.PoolManager()
+	flat_res = ""
 	try:
-		res = http.request("GET", "http://www." + current_domain, timeout=10)
+		#res = http.request("GET", "https://www." + current_domain, timeout=10)
+		res = http.request("GET", "https://www." + current_domain, headers, timeout=10)
 	except:
-		http_server="ConnFailure"
+		#print("\nhttps failure, trying http for host www." + current_domain + "...\r")
+		http_kind="no HTTPS"
+		try:
+			res = http.request("GET", "http://www." + current_domain, headers, timeout=10)
+		except:
+			http_server="ConnFailure"
+			http_kind="ConnFailure"
+			http_cms="ConnFailure"
+
+
+
 	if http_server != "ConnFailure":
+		#print("\nNo https, but http connected for host www." + current_domain + "...")
 		try:
 			http_server = res.info()["Server"]
 		except:
@@ -72,25 +105,43 @@ def check_http_header(current_domain):
 		flat_res = str(res.info()).lower()
 
 		if flat_res.find("drupal") > 0:
-			http_server = "Drupal"
+			http_cms_result = "Drupal"
 		if flat_res.find("joomla") > 0:
-			http_server = "Joomla"
+			http_cms_result = "Joomla"
 		if flat_res.find("wordpress") > 0:
-			http_server = "WordPress"
+			http_cms_result = "WordPress"
 		if flat_res.find("craft cms") > 0:
-			http_server = "Craft CMS"
+			http_cms_result = "Craft CMS"
 		if flat_res.find("wp rocket") > 0:
-			http_server = "WordPress"
+			http_cms_result = "WordPress"
+		if flat_res.find("api.w.org") > 0:
+			http_cms_result = "WordPress"
+		if flat_res.find("wp-json") > 0:
+			http_cms_result = "WordPress"
+		if flat_res.find("xmlrpc.php") > 0:
+			http_cms_result = "WordPress"
+		if flat_res.find("plesklin") > 0:
+			http_cms_result = "WordPress"
+		if flat_res.find("varnish") > 0:
+			http_cms_result = "Proxy Vernish"
+		else:
+			http_cms_result = "Unknown"
 		res.close()
 	else:
-		print("Connection Failure")
-
+		print("http Connection Failed for : www." + current_domain)
+	#print(flat_res, "CMS: ", http_cms_result)
 	return http_server
 
-f=open("MX-check-klanten.csv", "r", encoding='ISO-8859-1')
+#Check arguemnts
+filename = sys.argv[1]
+
+f=open(filename, "r", encoding='ISO-8859-1')
 i_del = ";"
 csv_export=open("output.csv", "w")
 
+
+http_error = ""
+http_unsecure = False
 ms_inc = 0
 nonms_inc = 0
 protected_inc = 0
@@ -100,7 +151,7 @@ domain_duplicates_inc = 0
 domain_list = []
 domain_error_inc = 0
 domain_repaired_inc = 0
-csv_export.write("CustomerNr,CustomerName,AlreadyBCDcustomer,Domain,Email,MX_Left,MX_DomPart,CustomerType,UsesBcd,WebServer,CMS\n")
+csv_export.write("CustomerNr,CustomerName,AlreadyBCDcustomer,Domain,Email,MX_Left,MX_DomPart,MX_Preference,CustomerType,UsesBcd,WebServer,CMS,HTTPS\n")
 skip_header = next(f)
 for import_record in f:
 	#print(import_record)
@@ -116,21 +167,22 @@ for import_record in f:
 	except:
 		domain_error = True
 	domain=y.split ('\n')[0]
+	try:
+		mailservers = dns.resolver.query(domain, 'MX')
+	except:
+		if repair_domain(domain) == False:
+			print("\nError for domain: " + domain)
+			domain_error_inc += 1
+			domain_error = True
+		else:
+			print("Domain repaired for domain: " + domain)
+			domain_repaired_inc += 1
 	if detect_duplicate_domain(domain) == False:
 		customer_type = "undefined"
 		domain_list.append(domain)
 		domain_list_inc += 1
 		mx_preference = 1000
-		try:
-			mailservers = dns.resolver.query(domain, 'MX')
-		except:
-			if repair_domain(domain) == False:
-				print("Error for domain: " + domain)
-				domain_error_inc += 1
-				domain_error = True
-			else:
-				print("Domain repaired for domain: " + domain)
-				domain_repaired_inc += 1
+
 		atleast_one_ms = False
 		atleast_one_bcd = False
 		for mx_item in mailservers:
@@ -170,6 +222,7 @@ for import_record in f:
 			#print("right: " + mx_right +"\n")
 
 			http_server=check_http_header(domain)
+			#print (http_server)
 
 			csv_export.write(import_record.split(i_del)[0] + "," +
 			 	import_record.split(i_del)[2] + "," +
@@ -182,7 +235,8 @@ for import_record in f:
 				customer_type + "," +
 				str(atleast_one_bcd) + "," +
 				http_server + "," +
-				http_cms + "\n")
+				http_cms + "," +
+				http_kind + "\n")
 f.close()
 csv_export.close()
 print("Result of analysing email domains in search of protection.")
