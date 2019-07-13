@@ -1,6 +1,7 @@
 #! /usr/bin/python3
 
 import dns.resolver
+import urllib3
 
 
 def has_ms(mx_record_parm, contains_value):
@@ -32,7 +33,7 @@ domain_list_inc = 0
 domain_duplicates_inc = 0
 domain_list = []
 domain_error_inc = 0
-csv_export.write("CustomerNr,CustomerName,AlreadyBCDcustomer,Domain,Email,HighestMX,Preference,CustomerType,UsesBcd\n")
+csv_export.write("CustomerNr,CustomerName,AlreadyBCDcustomer,Domain,Email,MX_Left,MX_DomPart,CustomerType,UsesBcd,WebServer,CMS\n")
 skip_header = next(f)
 for import_record in f:
 	#print(import_record)
@@ -82,15 +83,53 @@ for import_record in f:
 					else:
 						nonms_inc += 1
 						customer_type = "other"
+
+			# Split MX record so domain is separate
+			mx_left = ""
+			mx_length = len(lowest_mx.to_text().rsplit("."))
+			mx_right = (lowest_mx.to_text().rsplit(".")[mx_length-3] + "."
+				+ lowest_mx.to_text().rsplit(".")[mx_length-2])
+			for mx_part in range(0, mx_length -2):
+				mx_left = mx_left + lowest_mx.to_text().rsplit(".")[mx_part]
+			#print("left: " + mx_left + " *** \n")
+			#print("right: " + mx_right +"\n")
+
+			#Check HTTP header
+			http_cms = ""
+			http_cms_result = ""
+			http = urllib3.PoolManager()
+			try:
+				res = http.request("GET", "http://www." + domain, timeout=10)
+			except:
+				http_server=""
+			try:
+				http_server = res.info()["Server"]
+			except:
+				http_server = ""
+
+			try:
+			    http_cms_result = res.info()["X-Drupal-Cache"]
+			except:
+				http_cms = "Unknown"
+			if http_cms_result == "HIT":
+				http_cms = "Drupal"
+			res.close()
+
+
+
+
 			csv_export.write(import_record.split(i_del)[0] + "," +
 			 	import_record.split(i_del)[2] + "," +
 				import_record.split(i_del)[3].split("\n")[0] + "," +
 				domain + "," +
 				mailadres.split('\n')[0] + "," +
-				lowest_mx.to_text() + "," +
+				mx_left + "," +
+				mx_right + "," +
 				str(mx_preference) + "," +
 				customer_type + "," +
-				str(atleast_one_bcd) + "\n")
+				str(atleast_one_bcd) + "," +
+				http_server + "," +
+				http_cms + "\n")
 f.close()
 csv_export.close()
 print("Result of analysing email domains in search of protection.")
