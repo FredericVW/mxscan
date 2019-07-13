@@ -21,7 +21,61 @@ def detect_duplicate_domain(current_domain):
 		x += 1
 	return return_value
 
-f=open("MX-check-klanten.csv", "r", encoding='ISO-8859-1')
+def test_domain(current_domain):
+	return_value = True
+	global mailservers
+	try:
+		mailservers = dns.resolver.query(current_domain, 'MX')
+	except:
+		return_value =  False
+	return return_value
+
+def repair_domain(current_domain):
+	current_domain_s = current_domain.replace("<","")
+	current_domain = current_domain_s.replace(">","")
+	result_domain = test_domain(current_domain)
+	if result_domain == False:
+		array_domain = current_domain.split(".")
+		len_domain = len(array_domain)
+		repaired_domain = array_domain[len_domain - 2] + "." + array_domain[len_domain - 1]
+		result_domain = test_domain(repaired_domain)
+		if result_domain == False:
+			repaired_domain = current_domain_s.replace("-","")
+			result_domain = test_domain(repaired_domain)
+			if result_domain == False:
+				repaired_domain = current_domain[:-2] + "." + current_domain[-2:]
+				result_domain = test_domain(repaired_domain)
+				if result_domain == False:
+					repaired_domain = current_domain[:-3] + "." + current_domain[-3:]
+					result_domain = test_domain(repaired_domain)
+	return result_domain
+
+
+
+def check_http_header(current_domain):
+	global http_cms
+	http_cms = ""
+	global http_cms_result
+	http_cms_result = ""
+	http = urllib3.PoolManager()
+	try:
+		res = http.request("GET", "http://www." + current_domain, timeout=10)
+	except:
+		http_server="ConnFailure"
+	try:
+		http_server = res.info()["Server"]
+	except:
+		http_server = "Undetected"
+	try:
+	    http_cms_result = res.info()["X-Drupal-Cache"]
+	except:
+		http_cms = "Unknown"
+	if http_cms_result == "HIT":
+		http_cms = "Drupal"
+		res.close()
+	return http_server
+
+f=open("MX-check-klanten2.csv", "r", encoding='ISO-8859-1')
 i_del = ";"
 csv_export=open("output.csv", "w")
 
@@ -33,12 +87,17 @@ domain_list_inc = 0
 domain_duplicates_inc = 0
 domain_list = []
 domain_error_inc = 0
+domain_repaired_inc = 0
 csv_export.write("CustomerNr,CustomerName,AlreadyBCDcustomer,Domain,Email,MX_Left,MX_DomPart,CustomerType,UsesBcd,WebServer,CMS\n")
 skip_header = next(f)
 for import_record in f:
 	#print(import_record)
 	domain_error = False
-	mailadres=import_record.split(i_del)[1]
+	try:
+		mailadres=import_record.split(i_del)[1]
+	except:
+		print("Error in file")
+		domain_error = True
 	print("[" + str(domain_list_inc) + "]" + mailadres + "                       ", end = " \r")
 	try:
 		y=mailadres.split('@')[1]
@@ -53,9 +112,13 @@ for import_record in f:
 		try:
 			mailservers = dns.resolver.query(domain, 'MX')
 		except:
-			print("Error for domain: " + domain)
-			domain_error_inc += 1
-			domain_error = True
+			if repair_domain(domain) == False:
+				print("Error for domain: " + domain)
+				domain_error_inc += 1
+				domain_error = True
+			else:
+				print("Domain repaired for domain: " + domain)
+				domain_repaired_inc += 1
 		atleast_one_ms = False
 		atleast_one_bcd = False
 		for mx_item in mailservers:
@@ -94,29 +157,7 @@ for import_record in f:
 			#print("left: " + mx_left + " *** \n")
 			#print("right: " + mx_right +"\n")
 
-			#Check HTTP header
-			http_cms = ""
-			http_cms_result = ""
-			http = urllib3.PoolManager()
-			try:
-				res = http.request("GET", "http://www." + domain, timeout=10)
-			except:
-				http_server=""
-			try:
-				http_server = res.info()["Server"]
-			except:
-				http_server = ""
-
-			try:
-			    http_cms_result = res.info()["X-Drupal-Cache"]
-			except:
-				http_cms = "Unknown"
-			if http_cms_result == "HIT":
-				http_cms = "Drupal"
-			res.close()
-
-
-
+			http_server=check_http_header(domain)
 
 			csv_export.write(import_record.split(i_del)[0] + "," +
 			 	import_record.split(i_del)[2] + "," +
@@ -140,3 +181,4 @@ print("Others : " + str(nonms_inc))
 print("Duplicate domains ignored : " + str(domain_duplicates_inc))
 print("Domains treated : " + str(domain_list_inc))
 print("Domain errors : " + str(domain_error_inc))
+print("Domains repaired : " + str(domain_repaired_inc))
