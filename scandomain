@@ -69,9 +69,9 @@ def check_http_header(current_domain):
         "DNT": "1", \
         "Cookie": "clientPrefs=||||lightg; userSymbolList=EOD+&DIT; userCookiePref=true; selectedsymbolindustry=EOD,; selectedsymboltype=EOD,EVERGREEN GLOBAL DIVIDEND OPPORTUNITY FUND COMMON SHARES OF BENEFICIAL INTEREST,NYSE; c_enabled$=true", \
         "Connection": "keep-alive", }
-	global http_cms
+	global http_cms_result
 	global http_kind
-	http_kind = "Undefined"
+	http_kind = "HTTPS"
 	global http_error
 	http_error = ""
 	http_server = "empty"
@@ -139,7 +139,7 @@ f=open(filename, "r", encoding='ISO-8859-1')
 i_del = ";"
 csv_export=open("output.csv", "w")
 
-
+http_cms_result = ""
 http_error = ""
 http_unsecure = False
 ms_inc = 0
@@ -235,7 +235,7 @@ for import_record in f:
 				customer_type + "," +
 				str(atleast_one_bcd) + "," +
 				http_server + "," +
-				http_cms + "," +
+				http_cms_result + "," +
 				http_kind + "\n")
 f.close()
 csv_export.close()
