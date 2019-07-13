@@ -70,15 +70,24 @@ def check_http_header(current_domain):
 			http_server = "Undetected"
 
 		flat_res = str(res.info()).lower()
-		if flat_res.find("drupal") == True:
-			print("Drupal")
+
+		if flat_res.find("drupal") > 0:
+			http_server = "Drupal"
+		if flat_res.find("joomla") > 0:
+			http_server = "Joomla"
+		if flat_res.find("wordpress") > 0:
+			http_server = "WordPress"
+		if flat_res.find("craft cms") > 0:
+			http_server = "Craft CMS"
+		if flat_res.find("wp rocket") > 0:
+			http_server = "WordPress"
 		res.close()
 	else:
 		print("Connection Failure")
 
 	return http_server
 
-f=open("MX-check-klanten2.csv", "r", encoding='ISO-8859-1')
+f=open("MX-check-klanten.csv", "r", encoding='ISO-8859-1')
 i_del = ";"
 csv_export=open("output.csv", "w")
 
