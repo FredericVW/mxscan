@@ -103,33 +103,21 @@ def check_http_header(current_domain):
 			http_server = "Undetected"
 
 		flat_res = str(res.info()).lower()
-
-		if flat_res.find("drupal") > 0:
-			http_cms_result = "Drupal"
-		if flat_res.find("joomla") > 0:
-			http_cms_result = "Joomla"
-		if flat_res.find("wordpress") > 0:
-			http_cms_result = "WordPress"
-		if flat_res.find("craft cms") > 0:
-			http_cms_result = "Craft CMS"
-		if flat_res.find("wp rocket") > 0:
-			http_cms_result = "WordPress"
-		if flat_res.find("api.w.org") > 0:
-			http_cms_result = "WordPress"
-		if flat_res.find("wp-json") > 0:
-			http_cms_result = "WordPress"
-		if flat_res.find("xmlrpc.php") > 0:
-			http_cms_result = "WordPress"
-		if flat_res.find("plesklin") > 0:
-			http_cms_result = "WordPress"
-		if flat_res.find("varnish") > 0:
-			http_cms_result = "Proxy Vernish"
+		if flat_res.find("drupal") != -1:	http_cms_result = "Drupal"
+		elif flat_res.find("joomla") != -1: http_cms_result = "Joomla"
+		elif flat_res.find("wordpress") != -1: http_cms_result = "WordPress"
+		elif flat_res.find("craft cms") != -1: http_cms_result = "Craft CMS"
+		elif flat_res.find("wp rocket") != -1: http_cms_result = "WordPess"
+		elif flat_res.find("api.w.org") != -1: http_cms_result = "WordPress";
+		elif flat_res.find("wp-json") != -1: http_cms_result = "WordPress"
+		elif flat_res.find("xmlrpc.php") != -1: http_cms_result = "WordPress"
+		elif flat_res.find("plesklin") != -1: http_cms_result = "WordPress"
+		elif flat_res.find("varnish") != -1: http_cms_result = "Proxy Vernish"
 		else:
 			http_cms_result = "Unknown"
 		res.close()
 	else:
 		print("http Connection Failed for : www." + current_domain)
-	#print(flat_res, "CMS: ", http_cms_result)
 	return http_server
 
 #Check arguemnts
