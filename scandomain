@@ -122,11 +122,17 @@ def check_http_header(current_domain):
 
 #Check arguemnts
 filename = sys.argv[1]
-
 f=open(filename, "r", encoding='ISO-8859-1')
 i_del = ";"
 csv_export=open("output.csv", "w")
 
+known_secure = ["barracuda", "trendmicro","sophos","solarwinds","spamtitan","symantec","mimecast",
+				"deliveryslip", "xeams", "comodo","laundry","gfi","egress","blade","sonicwall",
+				"encyro","eprism","paubox","ondmarc","vircom","inky","sentry","flextivity","halon",
+				"cloudmx","dmarcian","dmarcly","easydmarc","engarde","europeanmx","glasswall",
+				"greathorn","anubisnetworks","mailguard","xequte","mailengine","safetoopen",
+				"searchlight","dropsecure","seppmail","smartlock","totemomail","tracephishing",
+				"xfamail","zivver"]
 http_cms_result = ""
 http_error = ""
 http_unsecure = False
@@ -165,6 +171,7 @@ for import_record in f:
 		else:
 			print("Domain repaired for domain: " + domain)
 			domain_repaired_inc += 1
+	domain=domain.lower()
 	if detect_duplicate_domain(domain) == False:
 		customer_type = "undefined"
 		domain_list.append(domain)
@@ -172,12 +179,14 @@ for import_record in f:
 		mx_preference = 1000
 
 		atleast_one_ms = False
-		atleast_one_bcd = False
+		secured_domain = "Possible unsecured"
 		for mx_item in mailservers:
 			if has_ms(mx_item.exchange.to_text(), "outlook.com") == True:
 				atleast_one_ms = True
-			if has_ms(mx_item.exchange.to_text(), "barracuda") == True:
-				atleast_one_bcd = True
+			for secure_item in known_secure:
+				if has_ms(mx_item.exchange.to_text(), secure_item) == True:
+					secured_domain = secure_item
+					#print ("**** Secured *****", mx_item.exchange.to_text(), secure_item)
 			if mx_item.preference < mx_preference:
 				mx_preference = mx_item.preference
 				lowest_mx = mx_item.exchange
@@ -190,11 +199,11 @@ for import_record in f:
 			else:
 				if atleast_one_ms == True:
 					protected_inc += 1
-					customer_type = "O365 Protected"
+					customer_type = "Protected with O365 failover"
 				else:
-					if atleast_one_bcd == True:
+					if secured_domain == True:
 						barracuda_inc += 1
-						customer_type = "Barracuda Only"
+						customer_type = "Only Secured MX"
 					else:
 						nonms_inc += 1
 						customer_type = "other"
@@ -204,12 +213,15 @@ for import_record in f:
 			mx_length = len(lowest_mx.to_text().rsplit("."))
 			mx_right = (lowest_mx.to_text().rsplit(".")[mx_length-3] + "."
 				+ lowest_mx.to_text().rsplit(".")[mx_length-2])
-			for mx_part in range(0, mx_length -2):
-				mx_left = mx_left + lowest_mx.to_text().rsplit(".")[mx_part]
+			for mx_part in range(0, mx_length -3):
+				mx_left = mx_left + "." + lowest_mx.to_text().rsplit(".")[mx_part]
+			mx_left = mx_left[1:]
 			#print("left: " + mx_left + " *** \n")
 			#print("right: " + mx_right +"\n")
 
 			http_server=check_http_header(domain)
+			#http_server = ""
+			#http_kind = ""
 			#print (http_server)
 
 			csv_export.write(import_record.split(i_del)[0] + "," +
@@ -221,7 +233,7 @@ for import_record in f:
 				mx_right + "," +
 				str(mx_preference) + "," +
 				customer_type + "," +
-				str(atleast_one_bcd) + "," +
+				str(secured_domain) + "," +
 				http_server + "," +
 				http_cms_result + "," +
 				http_kind + "\n")
