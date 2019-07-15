@@ -132,7 +132,9 @@ known_secure = ["barracuda", "trendmicro","sophos","solarwinds","spamtitan","sym
 				"cloudmx","dmarcian","dmarcly","easydmarc","engarde","europeanmx","glasswall",
 				"greathorn","anubisnetworks","mailguard","xequte","mailengine","safetoopen",
 				"searchlight","dropsecure","seppmail","smartlock","totemomail","tracephishing",
-				"xfamail","zivver"]
+				"xfamail","zivver","proofpoint","appriver","symantec","vipre","avanan","agari",
+				"cloudmark","cyren","fortimail","reflexion","area1","paloalto","retruster",
+				"everycloud","firstwave","korumail","messagecontrol","topsec","zerospam"]
 http_cms_result = ""
 http_error = ""
 http_unsecure = False
@@ -145,7 +147,7 @@ domain_duplicates_inc = 0
 domain_list = []
 domain_error_inc = 0
 domain_repaired_inc = 0
-csv_export.write("CustomerNr,CustomerName,AlreadyBCDcustomer,Domain,Email,MX_Left,MX_DomPart,MX_Preference,CustomerType,UsesBcd,WebServer,CMS,HTTPS\n")
+csv_export.write("CustomerNr,CustomerName,AlreadyBCDcustomer,Domain,Email,MX_Left,MX_DomPart,MX_Preference,CustomerType,SecureMX,WebServer,CMS,HTTPS\n")
 skip_header = next(f)
 for import_record in f:
 	#print(import_record)
