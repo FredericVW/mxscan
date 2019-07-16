@@ -3,6 +3,8 @@
 import dns.resolver
 import urllib3
 import sys
+import socket
+import requests
 
 def has_ms(mx_record_parm, contains_value):
 	return_value = False
@@ -35,24 +37,51 @@ def repair_domain(current_domain):
 	current_domain_s = current_domain.replace("<","")
 	current_domain_t = current_domain_s.replace(">","")
 	current_domain_s = current_domain_t.replace(" ","")
-	current_domain = current_domain_s.replace("\n","")
+	current_domain_t = current_domain_s.replace("\n","")
+	current_domain_s = current_domain_t.replace("[","")
+	current_domain = current_domain_s.replace("]","")
 	result_domain = test_domain(current_domain)
 	repaired_domain=current_domain
 	#print ("Repaired domain: ", repaired_domain)
 	if result_domain == False:
 		array_domain = current_domain.split(".")
-		len_domain = len(array_domain)
-		repaired_domain = array_domain[len_domain - 2] + "." + array_domain[len_domain - 1]
+		len_domain_array = len(array_domain)
+		len_domain = len(domain)
+		repaired_domain = array_domain[len_domain_array - 2] + "." + array_domain[len_domain_array - 1]
 		result_domain = test_domain(repaired_domain)
 		if result_domain == False:
 			repaired_domain = current_domain_s.replace("-","")
 			result_domain = test_domain(repaired_domain)
-			if result_domain == False:
-				repaired_domain = current_domain[:-2] + "." + current_domain[-2:]
-				result_domain = test_domain(repaired_domain)
-				if result_domain == False:
-					repaired_domain = current_domain[:-3] + "." + current_domain[-3:]
-					result_domain = test_domain(repaired_domain)
+		if result_domain == False:
+			repaired_domain = current_domain[:-2] + "." + current_domain[-2:]
+			result_domain = test_domain(repaired_domain)
+		if result_domain == False:
+			repaired_domain = current_domain[:-3] + "." + current_domain[-3:];
+			result_domain = test_domain(repaired_domain);
+		if result_domain == False:
+			if current_domain[-8:] == ".com.com":
+				repaired_domain = current_domain[:len_domain-4]
+			result_domain = test_domain(repaired_domain)
+		if result_domain == False:
+			if current_domain[-6:] == ".be.be":
+				repaired_domain = current_domain[:len_domain-3]
+			result_domain = test_domain(repaired_domain)
+		if result_domain == False:
+			if current_domain[-6:] == ".nl.nl":
+				repaired_domain = current_domain[:len_domain-3]
+			result_domain = test_domain(repaired_domain)
+		if result_domain == False:
+			if current_domain[-2:] == ".n":
+				repaired_domain = current_domain + "l"
+			result_domain = test_domain(repaired_domain)
+		if result_domain == False:
+			if current_domain[-2:] == ".b":
+				repaired_domain = current_domain + "e"
+			result_domain = test_domain(repaired_domain)
+		if result_domain == False:
+			if current_domain[-3:] == ".co":
+				repaired_domain = current_domain + "m"
+			result_domain = test_domain(repaired_domain)
 	if result_domain == True:
 			domain = repaired_domain
 	return result_domain
@@ -71,7 +100,11 @@ def check_http_header(current_domain):
         "Connection": "keep-alive", }
 	global http_cms_result
 	global http_kind
+	global redir_url
+	global redir_succeded_inc
 	http_kind = "HTTPS"
+	failed_redir = False
+	failed_split = False
 	global http_error
 	http_error = ""
 	http_server = "empty"
@@ -81,19 +114,35 @@ def check_http_header(current_domain):
 	http = urllib3.PoolManager()
 	flat_res = ""
 	try:
-		#res = http.request("GET", "https://www." + current_domain, timeout=10)
-		res = http.request("GET", "https://www." + current_domain, headers, timeout=10)
+		res = http.request("GET", "https://www." + current_domain, headers, timeout=1, retries=0, redirect=False)
+		#res = requests.get("https://www." + current_domain, headers, timeout=2)
 	except:
 		#print("\nhttps failure, trying http for host www." + current_domain + "...\r")
 		http_kind="no HTTPS"
+		#res = requests.get("http://www." + current_domain, headers, timeout=2)
 		try:
-			res = http.request("GET", "http://www." + current_domain, headers, timeout=10)
+			res = http.request("GET", "http://www." + current_domain, headers, timeout=1, retries=0, redirect=False)
+			#res = requests.get("http://www." + current_domain, headers, timeout=2)
 		except:
 			http_server="ConnFailure"
 			http_kind="ConnFailure"
 			http_cms="ConnFailure"
+	try: redir = requests.get("http://www." + current_domain, headers, timeout=1)
+	except: failed_redir = True
+	try: redir_url = redir.history[0].headers['location']
+	except: failed_redir = True
+	try: redir_url = redir_url.split("/?Host=")[0]
+	except: failed_split = True
 
-
+	global retry_redir_succeed
+	retry_redir_succeed = False
+	if failed_redir == False and failed_split == False:
+		#print  ("redir_url = ", redir_url, "                                ")
+		try: res = http.request("GET", redir_url, headers, timeout=1, retries=0, redirect=False)
+		except: retry_redir_succeed = False
+		if retry_redir_succeed == True:
+			print("!!!! Retry succeeded!")
+			redir_succeded_inc +=1
 
 	if http_server != "ConnFailure":
 		#print("\nNo https, but http connected for host www." + current_domain + "...")
@@ -118,6 +167,7 @@ def check_http_header(current_domain):
 		res.close()
 	else:
 		print("http Connection Failed for : www." + current_domain)
+
 	return http_server
 
 #Check arguemnts
@@ -139,25 +189,31 @@ http_cms_result = ""
 http_error = ""
 http_unsecure = False
 ms_inc = 0
+google_inc = 0
 nonms_inc = 0
 protected_inc = 0
+protected_google_inc = 0
 barracuda_inc = 0
 domain_list_inc = 0
 domain_duplicates_inc = 0
+redir_succeded_inc = 0
 domain_list = []
 domain_error_inc = 0
 domain_repaired_inc = 0
-csv_export.write("CustomerNr,CustomerName,AlreadyBCDcustomer,Domain,Email,MX_Left,MX_DomPart,MX_Preference,CustomerType,SecureMX,WebServer,CMS,HTTPS\n")
+retry_redir_succeed = False
+csv_export.write("CustomerNr,CustomerName,AlreadyBCDcustomer,Domain,Email,MX_Left,MX_DomPart,ReverseDNS,MX_Preference,CustomerType,SecureMX,WebServer,CMS,HTTPS,RedirURL,RetrySucceed\n")
 skip_header = next(f)
 for import_record in f:
 	#print(import_record)
 	domain_error = False
+	redir_url=""
 	try:
 		mailadres=import_record.split(i_del)[1]
 	except:
-		print("Error in file")
+		#print("Error in file")
 		domain_error = True
-	print("[" + str(domain_list_inc) + "]" + mailadres + "                       ", end = " \r")
+	display_str = "[" + str(domain_list_inc) + "]" + mailadres + "[Dupl:" + str(domain_duplicates_inc) + "]                       "
+	print(display_str, end = "\r")
 	try:
 		y=mailadres.split('@')[1]
 	except:
@@ -167,11 +223,11 @@ for import_record in f:
 		mailservers = dns.resolver.query(domain, 'MX')
 	except:
 		if repair_domain(domain) == False:
-			print("\nError for domain: " + domain)
+			#print("\nError for domain: " + domain + "               ")
 			domain_error_inc += 1
 			domain_error = True
 		else:
-			print("Domain repaired for domain: " + domain)
+			#print("Domain repaired for domain: " + domain)
 			domain_repaired_inc += 1
 	domain=domain.lower()
 	if detect_duplicate_domain(domain) == False:
@@ -179,12 +235,14 @@ for import_record in f:
 		domain_list.append(domain)
 		domain_list_inc += 1
 		mx_preference = 1000
-
 		atleast_one_ms = False
+		atleast_one_google = False
 		secured_domain = "Possible unsecured"
 		for mx_item in mailservers:
 			if has_ms(mx_item.exchange.to_text(), "outlook.com") == True:
 				atleast_one_ms = True
+			if has_ms(mx_item.exchange.to_text(), "google") == True:
+				atleast_one_google = True
 			for secure_item in known_secure:
 				if has_ms(mx_item.exchange.to_text(), secure_item) == True:
 					secured_domain = secure_item
@@ -195,10 +253,16 @@ for import_record in f:
 		#print(domain + "\t" + lowest_mx.to_text() + "\t" + str(atleast_one_ms))
 		#print("Checking domain number: " + str(%domain_list_inc))
 		if domain_error == False:
-			if has_ms(lowest_mx.to_text(),"outlook.com") == True:
+			if has_ms(lowest_mx.to_text(),"google") == True:
+				google_inc += 1
+				customer_type = "Google Unpotected"
+			elif has_ms(lowest_mx.to_text(),"outlook.com") == True:
 				ms_inc += 1
 				customer_type = "O365 Unpotected"
 			else:
+				if atleast_one_google == True:
+					protected_google_inc += 1
+					customer_type = "Protected with Google failover"
 				if atleast_one_ms == True:
 					protected_inc += 1
 					customer_type = "Protected with O365 failover"
@@ -225,7 +289,17 @@ for import_record in f:
 			#http_server = ""
 			#http_kind = ""
 			#print (http_server)
-
+			reverse_dns=""
+			forward_dns=""
+			try: forward_dns = socket.gethostbyname(str(lowest_mx))
+			except: forward_dns = ""
+			try: reverse_dns = socket.gethostbyaddr(forward_dns)
+			except: reverse_dns=["",""]
+			if reverse_dns != "":
+				if secured_domain == "Possible unsecured":
+					for secure_item in known_secure:
+						if has_ms(str(reverse_dns[0]), secure_item) == True:
+							secured_domain = secure_item + " DNS"
 			csv_export.write(import_record.split(i_del)[0] + "," +
 			 	import_record.split(i_del)[2] + "," +
 				import_record.split(i_del)[3].split("\n")[0] + "," +
@@ -233,12 +307,15 @@ for import_record in f:
 				mailadres.split('\n')[0] + "," +
 				mx_left + "," +
 				mx_right + "," +
+				str(reverse_dns[0]) + "," +
 				str(mx_preference) + "," +
 				customer_type + "," +
 				str(secured_domain) + "," +
 				http_server + "," +
 				http_cms_result + "," +
-				http_kind + "\n")
+				http_kind + "," +
+				redir_url + "," +
+				str(retry_redir_succeed) + "\n")
 f.close()
 csv_export.close()
 print("Result of analysing email domains in search of protection.")
@@ -250,3 +327,4 @@ print("Duplicate domains ignored : " + str(domain_duplicates_inc))
 print("Domains treated : " + str(domain_list_inc))
 print("Domain errors : " + str(domain_error_inc))
 print("Domains repaired : " + str(domain_repaired_inc))
+print("Succeeded redirected domains: " + str(redir_succeded_inc))
