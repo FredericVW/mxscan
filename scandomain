@@ -5,6 +5,7 @@ import urllib3
 import sys
 import socket
 import requests
+import os
 
 def has_ms(mx_record_parm, contains_value):
 	return_value = False
@@ -136,13 +137,13 @@ def check_http_header(current_domain):
 
 	global retry_redir_succeed
 	retry_redir_succeed = False
-	if failed_redir == False and failed_split == False:
+	#if failed_redir == False and failed_split == False:
 		#print  ("redir_url = ", redir_url, "                                ")
-		try: res = http.request("GET", redir_url, headers, timeout=1, retries=0, redirect=False)
-		except: retry_redir_succeed = False
-		if retry_redir_succeed == True:
-			print("!!!! Retry succeeded!")
-			redir_succeded_inc +=1
+	#	try: res = http.request("GET", redir_url, headers, timeout=1, retries=0, redirect=False)
+	#	except: retry_redir_succeed = False
+	#	if retry_redir_succeed == True:
+	#		print("!!!! Retry succeeded!")
+	#		redir_succeded_inc +=1 """
 
 	if http_server != "ConnFailure":
 		#print("\nNo https, but http connected for host www." + current_domain + "...")
@@ -170,6 +171,18 @@ def check_http_header(current_domain):
 
 	return http_server
 
+def check_sql():
+	global sql_safe
+	sql_outputfile = "sql.out"
+	sql_safe = False
+	sql_os_command = "sqlmap -u www." + domain + "/index.php?id=1 --batch"
+	sql_os_return = os.system(sql_os_command + " >> " + sql_outputfile)
+	sql_file=open(sql_outputfile, "r")
+	for sql_output_line in sql_file :
+		if "waf/ips" in sql_output_line: sql_safe = true
+	print(" SQL Safe = ", sql_safe, "; OS Return = ", sql_os_return)
+
+
 #Check arguemnts
 filename = sys.argv[1]
 f=open(filename, "r", encoding='ISO-8859-1')
@@ -184,7 +197,7 @@ known_secure = ["barracuda", "trendmicro","sophos","solarwinds","spamtitan","sym
 				"searchlight","dropsecure","seppmail","smartlock","totemomail","tracephishing",
 				"xfamail","zivver","proofpoint","appriver","symantec","vipre","avanan","agari",
 				"cloudmark","cyren","fortimail","reflexion","area1","paloalto","retruster",
-				"everycloud","firstwave","korumail","messagecontrol","topsec","zerospam"]
+				"everycloud","firstwave","korumail","messagecontrol","topsec","zerospam","spam"]
 http_cms_result = ""
 http_error = ""
 http_unsecure = False
@@ -201,6 +214,7 @@ domain_list = []
 domain_error_inc = 0
 domain_repaired_inc = 0
 retry_redir_succeed = False
+sql_safe = False
 csv_export.write("CustomerNr,CustomerName,AlreadyBCDcustomer,Domain,Email,MX_Left,MX_DomPart,ReverseDNS,MX_Preference,CustomerType,SecureMX,WebServer,CMS,HTTPS,RedirURL,RetrySucceed\n")
 skip_header = next(f)
 for import_record in f:
@@ -212,8 +226,8 @@ for import_record in f:
 	except:
 		#print("Error in file")
 		domain_error = True
-	display_str = "[" + str(domain_list_inc) + "]" + mailadres + "[Dupl:" + str(domain_duplicates_inc) + "]                       "
-	print(display_str, end = "\r")
+	display_str = "[" + str(domain_list_inc) + "]" + mailadres + "[Dupl:" + str(domain_duplicates_inc) + "]"
+	print(display_str, end = "")
 	try:
 		y=mailadres.split('@')[1]
 	except:
@@ -300,6 +314,9 @@ for import_record in f:
 					for secure_item in known_secure:
 						if has_ms(str(reverse_dns[0]), secure_item) == True:
 							secured_domain = secure_item + " DNS"
+			print ("SQL check...", end = " ")
+			check_sql()
+			print (" *** ")
 			csv_export.write(import_record.split(i_del)[0] + "," +
 			 	import_record.split(i_del)[2] + "," +
 				import_record.split(i_del)[3].split("\n")[0] + "," +
