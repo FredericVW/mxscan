@@ -91,6 +91,7 @@ def repair_domain(current_domain):
 
 def check_http_header(current_domain):
 	# Fake Firefox headers
+	print("-HTTP scan- ", end = "\r")
 	headers = {"Host" : "www.nasdaq.com", \
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64; rv:42.0) Gecko/20100101 Firefox/42.0", \
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", \
@@ -167,20 +168,28 @@ def check_http_header(current_domain):
 			http_cms_result = "Unknown"
 		res.close()
 	else:
-		print("http Connection Failed for : www." + current_domain)
-
+		#print("http Connection Failed for : www." + current_domain)
+		print("ConFail", end="\r")
 	return http_server
 
 def check_sql():
 	global sql_safe
+	print("-SQL scan-  ", end = "\r")
 	sql_outputfile = "sql.out"
 	sql_safe = False
-	sql_os_command = "sqlmap -u www." + domain + "/index.php?id=1 --batch"
-	sql_os_return = os.system(sql_os_command + " >> " + sql_outputfile)
+	sql_os_command = "sqlmap -u www." + domain + " --batch"
+	sql_os_return = os.system(sql_os_command + " > " + sql_outputfile)
+
+	print("-SQL anal-   ", end = "\r")
 	sql_file=open(sql_outputfile, "r")
 	for sql_output_line in sql_file :
-		if "waf/ips" in sql_output_line: sql_safe = true
-	print(" SQL Safe = ", sql_safe, "; OS Return = ", sql_os_return)
+		sql_waf=sql_output_line.find("WAF/IPS")
+		sql_crit=sql_output_line.find("CRITICAL")
+		if sql_waf >-1 and sql_crit >-1: sql_safe = True
+	if sql_safe == True: S=1
+	else: S=0
+	print(" S=", S, "      ", end="\r")
+	sql_file.close()
 
 
 #Check arguemnts
@@ -215,7 +224,7 @@ domain_error_inc = 0
 domain_repaired_inc = 0
 retry_redir_succeed = False
 sql_safe = False
-csv_export.write("CustomerNr,CustomerName,AlreadyBCDcustomer,Domain,Email,MX_Left,MX_DomPart,ReverseDNS,MX_Preference,CustomerType,SecureMX,WebServer,CMS,HTTPS,RedirURL,RetrySucceed\n")
+csv_export.write("CustomerNr,CustomerName,AlreadyBCDcustomer,Domain,Email,MX_Left,MX_DomPart,ReverseDNS,MX_Preference,CustomerType,SecureMX,WebServer,CMS,HTTPS,RedirURL,WAF/IPS\n")
 skip_header = next(f)
 for import_record in f:
 	#print(import_record)
@@ -226,8 +235,7 @@ for import_record in f:
 	except:
 		#print("Error in file")
 		domain_error = True
-	display_str = "[" + str(domain_list_inc) + "]" + mailadres + "[Dupl:" + str(domain_duplicates_inc) + "]"
-	print(display_str, end = "")
+	display_str = "            [" + str(domain_list_inc) + "]" + mailadres + "[Dupl:" + str(domain_duplicates_inc) + "]                      "
 	try:
 		y=mailadres.split('@')[1]
 	except:
@@ -240,11 +248,13 @@ for import_record in f:
 			#print("\nError for domain: " + domain + "               ")
 			domain_error_inc += 1
 			domain_error = True
+			mailservers=""
 		else:
 			#print("Domain repaired for domain: " + domain)
 			domain_repaired_inc += 1
 	domain=domain.lower()
 	if detect_duplicate_domain(domain) == False:
+		print(display_str, end = "\r")
 		customer_type = "undefined"
 		domain_list.append(domain)
 		domain_list_inc += 1
@@ -314,9 +324,7 @@ for import_record in f:
 					for secure_item in known_secure:
 						if has_ms(str(reverse_dns[0]), secure_item) == True:
 							secured_domain = secure_item + " DNS"
-			print ("SQL check...", end = " ")
 			check_sql()
-			print (" *** ")
 			csv_export.write(import_record.split(i_del)[0] + "," +
 			 	import_record.split(i_del)[2] + "," +
 				import_record.split(i_del)[3].split("\n")[0] + "," +
@@ -332,7 +340,8 @@ for import_record in f:
 				http_cms_result + "," +
 				http_kind + "," +
 				redir_url + "," +
-				str(retry_redir_succeed) + "\n")
+				str(sql_safe) + "\n")
+			print(" ")
 f.close()
 csv_export.close()
 print("Result of analysing email domains in search of protection.")
